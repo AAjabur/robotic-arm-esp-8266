@@ -28,8 +28,6 @@ wss.on('connection', (ws, req) => {
     if (esp_client != null){
       esp_client.send(message)
     }
-    console.log("received message");
-    console.log(parsed_angles);
 
   });
 

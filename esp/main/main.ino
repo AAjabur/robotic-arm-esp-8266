@@ -1,6 +1,5 @@
 #include <ESP8266WiFi.h>
 #include <WebSocketClient.h>
-#include <Servo.h>
 #include <stdint.h>
 
 #define WIFI_SSID "CARAJAS 2.4G"

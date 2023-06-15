@@ -1,4 +1,4 @@
-const web_socket_server = new WebSocket("ws://192.168.0.22:9000/");
+const web_socket_server = new WebSocket("ws://192.168.43.214:9000/");
 var servo_periods = {
     "servo_0": 1500,
     "servo_1": 1500,
