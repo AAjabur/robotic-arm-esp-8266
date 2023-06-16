@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiClient.h>
 #include <ESP32Servo.h>
 #include <WebSocketClient.h>
 #include <Adafruit_MPU6050.h>
@@ -6,7 +7,7 @@
 #include <Wire.h>
 
 #define SERVO_GPIO 2
-#define WEBSOCKET_SERVER_IP_ADDRS "192.168.43.214"
+#define WEBSOCKET_SERVER_IP_ADDRS "192.168.15.5"
 
 #define CONTINUOUS_SERVO_MIN_PERIOD_MS 1000
 #define CONTINUOUS_SERVO_MAX_PERIOD_MS 2000
@@ -19,20 +20,28 @@
 #define SERVO_4_PIN 4
 #define COUNTINUOUS_SERVO_PIN 15
 
-const char* wifi_ssid = "ASUS_X01BDA";
-const char* wifi_password = "12345678";
+const char* wifi_ssid = "MAFE";
+const char* wifi_password = "marialinda07";
+
+TaskHandle_t task1_handle;
+TaskHandle_t task2_handle;
+TaskHandle_t task3_handle;
 
 WebSocketClient ws_client;
 Adafruit_MPU6050 mpu;
 
+unsigned int counter = 0;
+
 Servo servos[5];
 Servo continuous_servo;
+uint16_t servo_angles[6] = {1500, 1500, 1500, 1500, 1500, 1500};
 
 float goal_z_angle = 0;
 float z_relative_angle = 0;
 
 void proccess_internet_reconnections(void *parameters) {
   while(1) {
+    Serial.println("Entereaisdji");
     if (!ws_client.isConnected()) {
       ws_client.connect(WEBSOCKET_SERVER_IP_ADDRS, "/", 9000);
       Serial.println("Not connected to websocket server");
@@ -46,14 +55,14 @@ void proccess_internet_reconnections(void *parameters) {
   }
 }
 
-void update_relative_z_angle(void *parameters) {
+void update_z_angle(void *parameters) {
   while(1) {
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
     z_relative_angle += (g.gyro.z + 0.027)*0.02;
 
-    vTaskDelay( 20 / portTICK_PERIOD_MS);
+    vTaskDelay( 200 / portTICK_PERIOD_MS);
   }
 }
 
@@ -61,35 +70,38 @@ void receive_angle_messages(void *parameters) {
   while (1){
     unsigned char msg_buf[13];
     String msg_str;
-    uint16_t servo_angles[6] = {1500, 1500, 1500, 1500, 1500, 1500};
-    if (ws_client.getMessage(msg_str)) {
+
+    bool cu = ws_client.getMessage(msg_str);
+    if (cu) {
+      Serial.print(++counter);
       Serial.println("Received a Message");
 
-      while(ws_client.getMessage(msg_str)); // get only the last msg received
+      // while(ws_client.getMessage(msg_str)); // get only the last msg received
 
       msg_str.getBytes(msg_buf, 13);
 
       for (int i = 0; i != 6; i++){
         servo_angles[i] = (uint16_t)((msg_buf[2*i+1] << 8) | msg_buf[2*i]);
       }
-
-      for (int i=0; i != 5; i++){
-        servos[i].writeMicroseconds(servo_angles[i]);
-      }
     }
 
     goal_z_angle = servo_angles[5] * 2*PI / 1000;
-    vTaskDelay( 100 / portTICK_PERIOD_MS);
+    vTaskDelay( 200 / portTICK_PERIOD_MS);
   }
 }
 
-void control_z_servo(void *parameters) {
+void update_servos_pos(void *parameters) {
   while (1) {
     float error_angle = goal_z_angle - z_relative_angle;
 
     // continuous_servo.writeMicroseconds(CONTINUOUS_SERVO_ZERO_PERIOD_MS + error_angle*5);
     continuous_servo.writeMicroseconds(1500);
-    vTaskDelay( 100 / portTICK_PERIOD_MS);
+
+    for (int i=0; i != 5; i++){
+      servos[i].writeMicroseconds(servo_angles[i]);
+    }
+  
+    vTaskDelay( 200 / portTICK_PERIOD_MS);
   }
 }
 
@@ -100,11 +112,21 @@ void setup() {
   Serial.print("\nConnecting to ");
   Serial.println(wifi_ssid);
 
+  WiFi.useStaticBuffers(true);
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifi_ssid, wifi_password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Trying to connect to wifi");
+    delay(500);
+  }
 
   ws_client.setAuthorizationHeader("meu_segredinho");
   ws_client.connect(WEBSOCKET_SERVER_IP_ADDRS, "/", 9000);
+
+  while (!ws_client.isConnected()) {
+    Serial.println("Trying to connect to websocket server");
+  }
 
   int servo_pins[5] = {SERVO_0_PIN, SERVO_1_PIN, SERVO_2_PIN, SERVO_3_PIN, SERVO_4_PIN};
   for (int i; i!=5; i++){
@@ -124,40 +146,43 @@ void setup() {
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 
-  xTaskCreate(
+  xTaskCreatePinnedToCore(
     proccess_internet_reconnections,
     "proccess_internet_reconnections",
     5000,
     NULL,
-    0,
-    NULL
+    1,
+    &task3_handle,
+    1
   );
 
-  xTaskCreate(
+  xTaskCreatePinnedToCore(
     receive_angle_messages,
     "receive_angle_messages",
     5000,
     NULL,
     0,
-    NULL
+    &task1_handle,
+    0
   );
 
-  xTaskCreate(
-    update_relative_z_angle,
-    "update_relative_z_angle",
+  // xTaskCreate(
+  //   update_z_angle,
+  //   "update_z_angle",
+  //   5000,
+  //   NULL,
+  //   1,
+  //   NULL
+  // );
+
+  xTaskCreatePinnedToCore(
+    update_servos_pos,
+    "update_servos_pos",
     5000,
     NULL,
     0,
-    NULL
-  );
-
-  xTaskCreate(
-    control_z_servo,
-    "control_z_servo",
-    5000,
-    NULL,
-    0,
-    NULL
+    &task2_handle,
+    0
   );
 }
 
