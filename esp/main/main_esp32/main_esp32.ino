@@ -9,8 +9,8 @@
 #define SERVO_GPIO 2
 #define WEBSOCKET_SERVER_IP_ADDRS "192.168.15.5"
 
-#define CONTINUOUS_SERVO_MIN_PERIOD_MS 1000
-#define CONTINUOUS_SERVO_MAX_PERIOD_MS 2000
+#define CONTINUOUS_SERVO_MIN_PERIOD_MS 1300
+#define CONTINUOUS_SERVO_MAX_PERIOD_MS 1700
 #define CONTINUOUS_SERVO_ZERO_PERIOD_MS 1500
 #define PI 3.14159
 #define SERVO_0_PIN 13
@@ -90,8 +90,16 @@ void update_servos_pos(void *parameters) {
   while (1) {
     float error_angle = goal_z_angle - z_relative_angle;
 
-    // continuous_servo.writeMicroseconds(CONTINUOUS_SERVO_ZERO_PERIOD_MS + error_angle*5);
-    continuous_servo.writeMicroseconds(1500);
+    Serial.println();
+    Serial.print("Goal z angle is ");
+    Serial.println(goal_z_angle);
+
+    Serial.print("Z relative angle is ");
+    Serial.println(z_relative_angle);
+
+    Serial.print("I will send period ");
+    Serial.println(CONTINUOUS_SERVO_ZERO_PERIOD_MS + error_angle*273);
+    continuous_servo.writeMicroseconds(CONTINUOUS_SERVO_ZERO_PERIOD_MS - error_angle*273);
 
     for (int i=0; i != 5; i++){
       servos[i].writeMicroseconds(servo_angles[i]);
