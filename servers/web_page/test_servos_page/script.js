@@ -1,4 +1,4 @@
-const web_socket_server = new WebSocket("ws://192.168.43.214:9000/");
+const web_socket_server = new WebSocket("ws://192.168.15.5:9000/");
 var servo_periods = {
     "servo_0": 1500,
     "servo_1": 1500,
@@ -13,7 +13,7 @@ web_socket_server.onopen = (event) => {
     console.log("Stablished a connection sucessfuly");
     setInterval(() => {
         send_angles_message(servo_periods);
-    }, 200);
+    }, 500);
 }
 
 

@@ -26,6 +26,7 @@ const char* wifi_password = "marialinda07";
 TaskHandle_t task1_handle;
 TaskHandle_t task2_handle;
 TaskHandle_t task3_handle;
+TaskHandle_t task4_handle;
 
 WebSocketClient ws_client;
 Adafruit_MPU6050 mpu;
@@ -41,17 +42,11 @@ float z_relative_angle = 0;
 
 void proccess_internet_reconnections(void *parameters) {
   while(1) {
-    Serial.println("Entereaisdji");
     if (!ws_client.isConnected()) {
       ws_client.connect(WEBSOCKET_SERVER_IP_ADDRS, "/", 9000);
       Serial.println("Not connected to websocket server");
     }
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Not connected to wifi");
-      WiFi.disconnect();
-      WiFi.reconnect();
-    }
-    vTaskDelay( 20000 / portTICK_PERIOD_MS);
+    vTaskDelay( 500 / portTICK_PERIOD_MS);
   }
 }
 
@@ -60,7 +55,7 @@ void update_z_angle(void *parameters) {
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
-    z_relative_angle += (g.gyro.z + 0.027)*0.02;
+    z_relative_angle += (g.gyro.z + 0.027)*0.2;
 
     vTaskDelay( 200 / portTICK_PERIOD_MS);
   }
@@ -72,6 +67,7 @@ void receive_angle_messages(void *parameters) {
     String msg_str;
 
     bool cu = ws_client.getMessage(msg_str);
+
     if (cu) {
       Serial.print(++counter);
       Serial.println("Received a Message");
@@ -151,9 +147,9 @@ void setup() {
     "proccess_internet_reconnections",
     5000,
     NULL,
-    1,
+    0,
     &task3_handle,
-    1
+    0
   );
 
   xTaskCreatePinnedToCore(
@@ -166,14 +162,15 @@ void setup() {
     0
   );
 
-  // xTaskCreate(
-  //   update_z_angle,
-  //   "update_z_angle",
-  //   5000,
-  //   NULL,
-  //   1,
-  //   NULL
-  // );
+  xTaskCreatePinnedToCore(
+    update_z_angle,
+    "update_z_angle",
+    5000,
+    NULL,
+    1,
+    &task4_handle,
+    0
+  );
 
   xTaskCreatePinnedToCore(
     update_servos_pos,
